@@ -3,6 +3,7 @@ See-through: Single-image Layer Decomposition for Anime Characters
 ---
 
 <a href='https://arxiv.org/abs/2602.03749'><img src='https://img.shields.io/badge/arXiv-2602.03749-b31b1b.svg'></a>
+<a href='https://huggingface.co/spaces/24yearsold/see-through-demo'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Space-PSD%20Inference%20Demo-blue'></a>
 
 
 _**[Jian Lin](https://github.com/dmMaze)<sup>1</sup>, [Chengze Li](https://moeka.me)<sup>1*</sup>, [Haoyun Qin](https://haoyunqin.com/)<sup>2,3,4</sup>, Kwun Wang Chan<sup>1</sup>, [Yanghua Jin](https://github.com/Aixile)<sup>3</sup>, [Hanyuan Liu](https://github.com/hyliu)<sup>1</sup>, Stephen Chun Wang Choy<sup>1</sup>, Xueting Liu<sup>1</sup>**_
@@ -154,6 +155,8 @@ We have our training scripts ready, but we are still working on the documentatio
 We welcome community contributions and third-party integrations! 
 
 If you build tools, extensions, or workflows on top of this project, please let us know by opening an issue or pull request — we would be happy to feature your work here.
+
+- [ComfyUI-See-through](https://github.com/jtydhr88/ComfyUI-See-through) by [@jtydhr88](https://github.com/jtydhr88) — Integration for ComfyUI, with node-based workflow and in-browser PSD export. Thank you for the amazing work!
 
 We also seek for i18n help for this project. Your help will be highly appreciated. 
 
