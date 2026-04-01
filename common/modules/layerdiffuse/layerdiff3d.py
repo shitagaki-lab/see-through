@@ -537,10 +537,11 @@ class GroupEmbedding(nn.Module):
         self.linear = nn.Linear(ndim, ndim)
 
     def forward(self, x: torch.Tensor):
+        curr_n = x.shape[0] if x.ndim == 3 else x.shape[0]
         if x.ndim == 3:
-            x = x + self.params[:, None]
+            x = x + self.params[:curr_n, None]
         else:
-            x = x + self.params
+            x = x + self.params[:curr_n]
         return self.linear(x)
 
 
