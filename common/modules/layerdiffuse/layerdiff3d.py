@@ -535,15 +535,11 @@ class GroupEmbedding(nn.Module):
         super().__init__(*args, **kwargs)
         self.params = nn.Parameter(torch.randn((n_cls, ndim)))
         self.linear = nn.Linear(ndim, ndim)
-        self.group_indices = None
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, group_indices: Optional[torch.Tensor] = None):
         bias = self.params
-        if self.group_indices is not None:
-            bias = bias[self.group_indices, None] if x.ndim == 3 else bias[self.group_indices]
-        else:
-            curr_n = x.shape[0]
-            bias = bias[:curr_n, None] if x.ndim == 3 else bias[:curr_n]
+        if group_indices is not None:
+            bias = bias[group_indices, None] if x.ndim == 3 else bias[group_indices]
         return self.linear(x+bias)
 
 
@@ -991,13 +987,6 @@ class UNetFrameConditionModel(
         )
 
         self._set_pos_net_if_use_gligen(attention_type=attention_type, cross_attention_dim=cross_attention_dim)
-
-    def apply_group_embedding_indices(self, group_indices, part="body"):
-        target_dim = 13 if part == "body" else 11 if part == "head" else None
-        if target_dim is None:
-            raise ValueError(f"Invalid part {part}. Must be one of `body` or `head`.")
-        self._apply_group_embedding(self.group_embeds , group_indices, target_dim)
-        self._apply_group_embedding(self.group_embeds2, group_indices, target_dim)
 
     def _apply_group_embedding(self, modules, group_indices, target_dim):
         for ge in modules:
@@ -1482,7 +1471,8 @@ class UNetFrameConditionModel(
         return class_emb
 
     def get_aug_embed(
-        self, emb: torch.Tensor, encoder_hidden_states: torch.Tensor, added_cond_kwargs: Dict[str, Any], aug_layer=None
+        self, emb: torch.Tensor, encoder_hidden_states: torch.Tensor, added_cond_kwargs: Dict[str, Any], aug_layer=None,
+        aug_group_embd_indices=None
     ) -> Optional[torch.Tensor]:
         aug_emb = None
         if self.config.addition_embed_type == "text":
@@ -1505,7 +1495,7 @@ class UNetFrameConditionModel(
                 )
             text_embeds = added_cond_kwargs.get("text_embeds")
             if aug_layer is not None:
-                text_embeds = text_embeds + aug_layer(text_embeds)
+                text_embeds = text_embeds + aug_layer(text_embeds, aug_group_embd_indices)
             if "time_ids" not in added_cond_kwargs:
                 raise ValueError(
                     f"{self.__class__} has the config param `addition_embed_type` set to 'text_time' which requires the keyword argument `time_ids` to be passed in `added_cond_kwargs`"
@@ -1586,7 +1576,8 @@ class UNetFrameConditionModel(
         down_intrablock_additional_residuals: Optional[Tuple[torch.Tensor]] = None,
         encoder_attention_mask: Optional[torch.Tensor] = None,
         return_dict: bool = True,
-        group_index = None
+        group_index = None,
+        group_embd_indices = None,
     ) -> Union[UNetFrameConditionOutput, Tuple]:
         r"""
         The [`UNet2DConditionModel`] forward method.
@@ -1640,7 +1631,7 @@ class UNetFrameConditionModel(
 
         if self.config.group_embedding:
             # encoder_hidden_states = self.
-            encoder_hidden_states = encoder_hidden_states + self.group_embeds2[group_index](encoder_hidden_states)
+            encoder_hidden_states = encoder_hidden_states + self.group_embeds2[group_index](encoder_hidden_states, group_embd_indices)
             # print(torch.sum(torch.abs(added_cond_kwargs['text_embeds'] - self.group_embeds[group_index](added_cond_kwargs['text_embeds']))))
 
         # upsample size should be forwarded when sample is not a multiple of `default_overall_up_factor`
@@ -1706,7 +1697,8 @@ class UNetFrameConditionModel(
             aug_layer = None
 
         aug_emb = self.get_aug_embed(
-            emb=emb, encoder_hidden_states=encoder_hidden_states, added_cond_kwargs=added_cond_kwargs, aug_layer=aug_layer
+            emb=emb, encoder_hidden_states=encoder_hidden_states, added_cond_kwargs=added_cond_kwargs, aug_layer=aug_layer,
+            aug_group_embd_indices=group_embd_indices
         )
         if self.config.addition_embed_type == "image_hint":
             aug_emb, hint = aug_emb

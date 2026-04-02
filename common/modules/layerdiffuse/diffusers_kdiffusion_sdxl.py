@@ -237,7 +237,8 @@ class KDiffusionStableDiffusionXLPipeline(StableDiffusionXLImg2ImgPipeline):
             negative_prompt=None,
             show_progress=True,
             fullpage=None,
-            group_index=None
+            group_index=None,
+            group_embd_indices=None,
     ):
 
         device = self.unet.device
@@ -339,7 +340,8 @@ class KDiffusionStableDiffusionXLPipeline(StableDiffusionXLImg2ImgPipeline):
                     encoder_hidden_states=prompt_embeds,
                     added_cond_kwargs=added_cond_kwargs,
                     return_dict=False,
-                    group_index=group_index
+                    group_index=group_index,
+                    group_embd_indices=group_embd_indices,
                 )[0]
 
                 # perform guidance
