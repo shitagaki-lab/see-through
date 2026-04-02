@@ -988,12 +988,6 @@ class UNetFrameConditionModel(
 
         self._set_pos_net_if_use_gligen(attention_type=attention_type, cross_attention_dim=cross_attention_dim)
 
-    def _apply_group_embedding(self, modules, group_indices, target_dim):
-        for ge in modules:
-            if ge.params.shape[0] != target_dim:
-                continue
-            ge.group_indices = group_indices
-
     def get_tag_version(self):
         return self.config.get('tag_version', None)
 
