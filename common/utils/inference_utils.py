@@ -5,7 +5,7 @@ from modules.layerdiffuse.diffusers_kdiffusion_sdxl import KDiffusionStableDiffu
 from modules.layerdiffuse.vae import TransparentVAE
 from modules.layerdiffuse.layerdiff3d import UNetFrameConditionModel
 from modules.marigold import MarigoldDepthPipeline
-from utils.cv import center_square_pad_resize, img_alpha_blending, smart_resize
+from utils.cv import center_square_pad_resize, img_alpha_blending, smart_resize, validate_resolution
 from utils.torch_utils import seed_everything
 from utils.io_utils import json2dict, dict2json, load_parts, save_tmp_img, load_part, save_psd
 from utils.torchcv import cluster_inpaint_part
@@ -181,7 +181,7 @@ def apply_layerdiff(
 
 
 marigold_pipeline: MarigoldDepthPipeline = None
-def apply_marigold(srcp, pretrained: str, num_inference_steps=30, seed=0, save_dir='workspace/layerdiff_output', target_tag_list=VALID_BODY_PARTS_V2, resolution=1280, normalize_depth=False, disable_progressbar=False):
+def apply_marigold(srcp, pretrained: str, num_inference_steps=-1, seed=0, save_dir='workspace/layerdiff_output', target_tag_list=VALID_BODY_PARTS_V2, resolution=1280, normalize_depth=False, disable_progressbar=False):
     global marigold_pipeline
     if marigold_pipeline is None:
         unet = UNetFrameConditionModel.from_pretrained(pretrained, subfolder='unet')
@@ -191,14 +191,22 @@ def apply_marigold(srcp, pretrained: str, num_inference_steps=30, seed=0, save_d
     pipe.set_progress_bar_config(disable=disable_progressbar)
 
     srcname = osp.basename(osp.splitext(srcp)[0])
+    saved = osp.join(save_dir, srcname)
+
+    src_img_p = osp.join(saved, 'src_img.png')
+    fullpage = np.array(Image.open(src_img_p).convert('RGBA'))
+
+    src_h, src_w = fullpage.shape[:2]
+    if isinstance(resolution, int) and resolution == -1:
+        resolution = [src_h, src_w]
+    resolution = validate_resolution(resolution)
+    src_rescaled = resolution[0] != src_h or resolution[1] != src_w
+
     img_list = []
     caption_list = []
     exist_list = []
-    empty_array = np.zeros((resolution, resolution, 4), dtype=np.uint8)
-    blended_alpha = np.zeros((resolution, resolution), dtype=np.float32)
-    fullpage = center_square_pad_resize(np.array(Image.open(srcp).convert('RGBA')), resolution)
-    
-    saved = osp.join(save_dir, srcname)
+    empty_array = np.zeros((src_h, src_w, 4), dtype=np.uint8)
+    blended_alpha = np.zeros((src_h, src_w), dtype=np.float32)
 
     compose_list = {'eyes': ['eyewhite', 'irides', 'eyelash', 'eyebrow'], 'hair': ['back hair', 'front hair']}
     for tag in VALID_BODY_PARTS_V2:
@@ -238,15 +246,22 @@ def apply_marigold(srcp, pretrained: str, num_inference_steps=30, seed=0, save_d
     fullpage[..., -1] = blended_alpha
     img_list.append(fullpage)
 
+    img_list_input = img_list
+    if src_rescaled:
+        img_list_input = [smart_resize(img, resolution) for img in img_list]
+
     seed_everything(seed)
     pipe_out = pipe(
         # tensor2img(img, 'pil', denormalize=True, mean=127.5, std=127.5),
         color_map=None,
-        img_list = img_list
+        img_list = img_list_input,
+        denoising_steps=num_inference_steps
     )
     depth_pred: np.ndarray = pipe_out.depth_tensor
     
     depth_pred = depth_pred.to(device='cpu', dtype=torch.float32).numpy()
+    if src_rescaled:
+        depth_pred = [smart_resize(d, (src_h, src_w)) for d in depth_pred]
     drawables = [{'img': img, 'depth': depth} for img, depth in zip(img_list, depth_pred)]
     drawables = drawables[:-1]
     blended = img_alpha_blending(drawables, premultiplied=False)
@@ -271,7 +286,7 @@ def apply_marigold(srcp, pretrained: str, num_inference_steps=30, seed=0, save_d
             for t, im in zip(compose_dict[tag]['taglist'][::-1], compose_dict[tag]['imlist'][::-1]):
                 mask_local = im[..., -1] > 15
                 mask_invis = np.bitwise_and(mask, mask_local)
-                depth_local = np.full((resolution, resolution), fill_value=255, dtype=np.uint8)
+                depth_local = np.full((src_h, src_w), fill_value=255, dtype=np.uint8)
                 depth_local[mask_local] = depth[mask_local]
                 if np.any(mask_invis):
                     depth_local[mask_invis] = np.median(depth[np.bitwise_and(mask_local, np.bitwise_not(mask_invis))])

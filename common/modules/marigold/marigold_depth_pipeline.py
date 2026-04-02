@@ -326,7 +326,7 @@ class MarigoldDepthPipeline(DiffusionPipeline):
                 )
                 cond_latent = rgb_latent[0]
 
-        if denoising_steps is None:
+        if denoising_steps is None or denoising_steps == -1:
             denoising_steps = self.default_denoising_steps
         if processing_res is None:
             processing_res = self.default_processing_resolution

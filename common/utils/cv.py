@@ -226,6 +226,31 @@ def smart_resize(src: np.ndarray, target_size, upscale_interpolation=cv2.INTER_L
     return cv2.resize(src, (tw, th), interpolation=interpolation)
 
 
+
+def validate_resolution(resolution: Union[str, Tuple, int], div=-1) -> List:
+
+    '''
+    make sure resolution is a valid (h: int, w: int) format and can be divided by div
+    '''
+
+    if isinstance(resolution, str):
+        resolution = [int(r.strip()) for r in resolution.split(',')]
+    elif isinstance(resolution, str):
+        resolution = (resolution, resolution)
+    elif isinstance(resolution, int):
+        resolution = [resolution, resolution]
+    elif isinstance(resolution, (Tuple, List)):
+        resolution = list(resolution)[:2]
+
+    reso_out = []
+    for res in resolution:
+        if div > 0 and res % div != 0:
+            res = math.ceil(res / div) * div
+        reso_out.append(res)
+    
+    return reso_out
+
+
 def center_square_pad_resize(img: np.ndarray, target_size, pad_value=0, upscale_interpolation=cv2.INTER_LINEAR, downscale_interpolation=cv2.INTER_AREA, return_pad_info=False):
     h, w = img.shape[:2]
     pad_size = (w, h)
