@@ -535,14 +535,16 @@ class GroupEmbedding(nn.Module):
         super().__init__(*args, **kwargs)
         self.params = nn.Parameter(torch.randn((n_cls, ndim)))
         self.linear = nn.Linear(ndim, ndim)
+        self.group_indices = None
 
     def forward(self, x: torch.Tensor):
-        curr_n = x.shape[0] if x.ndim == 3 else x.shape[0]
-        if x.ndim == 3:
-            x = x + self.params[:curr_n, None]
+        bias = self.params
+        if self.group_indices is not None:
+            bias = bias[self.group_indices, None] if x.ndim == 3 else bias[self.group_indices]
         else:
-            x = x + self.params[:curr_n]
-        return self.linear(x)
+            curr_n = x.shape[0]
+            bias = bias[:curr_n, None] if x.ndim == 3 else bias[:curr_n]
+        return self.linear(x+bias)
 
 
 @dataclass
@@ -990,6 +992,18 @@ class UNetFrameConditionModel(
 
         self._set_pos_net_if_use_gligen(attention_type=attention_type, cross_attention_dim=cross_attention_dim)
 
+    def apply_group_embedding_indices(self, group_indices, part="body"):
+        target_dim = 13 if part == "body" else 11 if part == "head" else None
+        if target_dim is None:
+            raise ValueError(f"Invalid part {part}. Must be one of `body` or `head`.")
+        self._apply_group_embedding(self.group_embeds , group_indices, target_dim)
+        self._apply_group_embedding(self.group_embeds2, group_indices, target_dim)
+
+    def _apply_group_embedding(self, modules, group_indices, target_dim):
+        for ge in modules:
+            if ge.params.shape[0] != target_dim:
+                continue
+            ge.group_indices = group_indices
 
     def get_tag_version(self):
         return self.config.get('tag_version', None)
