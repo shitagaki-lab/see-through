@@ -12,7 +12,7 @@ _**[Jian Lin](https://github.com/dmMaze)<sup>1</sup>, [Chengze Li](https://moeka
 
 <sup>*</sup>Corresponding author
 
-Conditionally accpted to appear in *ACM SIGGRAPH 2026 Conference Proceedings*.
+Conditionally accepted to appear in *ACM SIGGRAPH 2026 Conference Proceedings*.
 
 </div>
 
@@ -203,14 +203,14 @@ If you build tools, extensions, or workflows on top of this project, please let 
 
 - [ComfyUI-See-through](https://github.com/jtydhr88/ComfyUI-See-through) by [@jtydhr88](https://github.com/jtydhr88) — Integration for ComfyUI, with node-based workflow and in-browser PSD export. Thank you for the amazing work!
 
-We also seek for i18n help for this project. Your help will be highly appreciated. 
+We also seek i18n help for this project. Your help will be highly appreciated.
 
 
 ## Discussion: Is this Image-to-Live2D?
 
 We don't think so — at least, not yet.
 
-While we produces 2.5D layer decompositions from a single image,
+While we produce 2.5D layer decompositions from a single image,
 the full Image-to-Live2D pipeline requires significantly more:
 
 1. **Finer artistic decomposition.** Live2D models demand layers designed with specific
