@@ -27,7 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--repo_id_depth', default='24yearsold/seethroughv0.0.1_marigold')
     parser.add_argument('--vae_ckpt', default=None)
     parser.add_argument('--unet_ckpt', default=None)
-    parser.add_argument('--resolution', default=1280, help="inference resolution of layerdiff")
+    parser.add_argument('--resolution', type=int, default=1280, help="inference resolution of layerdiff")
     parser.add_argument('--resolution_depth', type=int, default=768, help="inference resolution of depth model, seethroughv0.0.1_marigold was trained at 768, setting it to -1 will align with layerdiff")
     parser.add_argument('--inference_steps', type=int, default=30, help="inference steps of layerdiff")
     parser.add_argument('--inference_steps_depth', type=int, default=-1, help="inference steps of depth model")
