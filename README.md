@@ -59,6 +59,24 @@ pip install -r requirements.txt
 ln -sf common/assets assets
 ```
 
+## Environment Setup (Docker)
+Build and start the container
+```bash
+docker compose up --build -d
+```
+
+Enter the container
+```bash
+docker exec -it see-through bash
+```
+
+Run inference
+```bash
+python inference/scripts/inference_psd.py \
+  --srcp assets/test_image.png \
+  --save_to_psd
+```
+
 **Optional annotator tiers** (install as needed):
 
 | Tier | Command | What it adds |
