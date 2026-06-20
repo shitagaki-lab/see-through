@@ -18,6 +18,14 @@ import numpy as np
 import torch
 from PIL import Image
 
+# PATCH-01: Apple Silicon / CUDA / CPU auto-detection
+if torch.cuda.is_available():
+    DEVICE = 'cuda'
+elif torch.backends.mps.is_available():
+    DEVICE = 'mps'
+else:
+    DEVICE = 'cpu'
+
 VALID_BODY_PARTS_V2 = [
     'hair', 'headwear', 'face', 'eyes', 'eyewear', 'ears', 'earwear', 'nose', 'mouth', 
     'neck', 'neckwear', 'topwear', 'handwear', 'bottomwear', 'legwear', 'footwear', 
@@ -62,12 +70,12 @@ def apply_layerdiff(
                 layerdiff_pipeline.trans_vae.decoder.load_state_dict(td_sd)
                 print(f'load vae from {vae_ckpt}')
 
-        layerdiff_pipeline.vae.to(dtype=torch.bfloat16, device='cuda')
-        layerdiff_pipeline.trans_vae.to(dtype=torch.bfloat16, device='cuda')
-        layerdiff_pipeline.unet.to(dtype=torch.bfloat16, device='cuda')
-        layerdiff_pipeline.text_encoder.to(dtype=torch.bfloat16, device='cuda')
-        layerdiff_pipeline.text_encoder_2.to(dtype=torch.bfloat16, device='cuda')
-        if group_offload:
+        layerdiff_pipeline.vae.to(dtype=torch.bfloat16, device=DEVICE)
+        layerdiff_pipeline.trans_vae.to(dtype=torch.bfloat16, device=DEVICE)
+        layerdiff_pipeline.unet.to(dtype=torch.bfloat16, device=DEVICE)
+        layerdiff_pipeline.text_encoder.to(dtype=torch.bfloat16, device=DEVICE)
+        layerdiff_pipeline.text_encoder_2.to(dtype=torch.bfloat16, device=DEVICE)
+        if group_offload and DEVICE == 'cuda':
             layerdiff_pipeline.enable_group_offload('cuda', num_blocks_per_group=1)
 
     pipeline = layerdiff_pipeline
@@ -192,9 +200,9 @@ def apply_marigold(srcp, pretrained: str, num_inference_steps=-1, seed=0, save_d
     if marigold_pipeline is None:
         unet = UNetFrameConditionModel.from_pretrained(pretrained, subfolder='unet')
         marigold_pipeline = MarigoldDepthPipeline.from_pretrained(pretrained, unet=unet)
-        marigold_pipeline.to(device='cuda', dtype=torch.bfloat16)
+        marigold_pipeline.to(device=DEVICE, dtype=torch.bfloat16)
 
-        if group_offload:
+        if group_offload and DEVICE == 'cuda':
             marigold_pipeline.enable_group_offload('cuda', num_blocks_per_group=1)
 
     pipe = marigold_pipeline

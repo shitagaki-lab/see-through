@@ -144,8 +144,8 @@ if DEVICE == 'cuda':
 
 | Patch | 状态 |
 |-------|------|
-| PATCH-01 设备检测 | ⬜ 待应用 |
-| PATCH-02 LayerDiff 设备 | ⬜ 待应用 |
-| PATCH-03 LayerDiff group_offload | ⬜ 待应用 |
-| PATCH-04 Marigold 设备 | ⬜ 待应用 |
-| PATCH-05 Marigold group_offload | ⬜ 待应用 |
+| PATCH-01 设备检测 | ✅ 已应用 |
+| PATCH-02 LayerDiff 设备 | ✅ 已应用 |
+| PATCH-03 LayerDiff group_offload | ✅ 已应用 |
+| PATCH-04 Marigold 设备 | ✅ 已应用 |
+| PATCH-05 Marigold group_offload | ✅ 已应用 |
