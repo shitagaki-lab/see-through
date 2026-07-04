@@ -57,7 +57,7 @@ def build_layerdiff_pipeline(args):
             repo, trans_vae=trans_vae, unet=unet, scheduler=None)
         if args.cpu_offload:
             pipeline.vae.to(dtype=torch.bfloat16)
-            pipeline.trans_vae.to(dtype=torch.bfloat16)
+            pipeline.trans_vae.to(dtype=torch.bfloat16, device='cuda')
             pipeline.unet.to(dtype=torch.bfloat16)
             pipeline.text_encoder.to(dtype=torch.bfloat16)
             pipeline.text_encoder_2.to(dtype=torch.bfloat16)
@@ -71,7 +71,7 @@ def build_layerdiff_pipeline(args):
             if getattr(args, 'group_offload', False):
                 pipeline.enable_group_offload('cuda', num_blocks_per_group=1)
         # Cache tag embeddings and unload text encoders to save VRAM
-        pipeline.cache_tag_embeds()
+        pipeline.cache_tag_embeds(unload_textencoders=not args.cpu_offload)
     else:
         # NF4: load from pre-quantized repo (auto-selected by REPO_MAP)
         repo = args.repo_id_layerdiff
@@ -84,7 +84,7 @@ def build_layerdiff_pipeline(args):
         if args.cpu_offload:
             # VAE + TransparentVAE to bf16; quantized components handled by bnb
             pipeline.vae.to(dtype=torch.bfloat16)
-            pipeline.trans_vae.to(dtype=torch.bfloat16)
+            pipeline.trans_vae.to(dtype=torch.bfloat16, device='cuda')
             pipeline.enable_model_cpu_offload()
         else:
             pipeline.vae.to(dtype=torch.bfloat16, device='cuda')
@@ -93,7 +93,7 @@ def build_layerdiff_pipeline(args):
             if getattr(args, 'group_offload', False):
                 pipeline.enable_group_offload('cuda', num_blocks_per_group=1)
         # Cache tag embeddings and unload text encoders to save VRAM
-        pipeline.cache_tag_embeds()
+        pipeline.cache_tag_embeds(unload_textencoders=not args.cpu_offload)
 
     return pipeline
 
@@ -113,7 +113,7 @@ def build_marigold_pipeline(args):
             marigold_pipe.to(device='cuda', dtype=torch.bfloat16)
             if getattr(args, 'group_offload', False):
                 marigold_pipe.enable_group_offload('cuda', num_blocks_per_group=1)
-        marigold_pipe.cache_tag_embeds()
+        marigold_pipe.cache_tag_embeds(unload_textencoders=not args.cpu_offload)
     else:
         # NF4: load from pre-quantized repo (auto-selected by REPO_MAP)
         repo = args.repo_id_depth
@@ -126,9 +126,14 @@ def build_marigold_pipeline(args):
         if not getattr(marigold_pipe.text_encoder, 'is_quantized', False) and \
            not getattr(marigold_pipe.text_encoder, 'quantization_method', None):
             marigold_pipe.text_encoder.to(device='cuda')
-        if getattr(args, 'group_offload', False):
+        # Cache tag embeds BEFORE group offload hooks are installed.
+        # NF4-quantized text encoder blocks cannot be moved to CPU by group offload.
+        marigold_pipe.cache_tag_embeds(unload_textencoders=not args.cpu_offload)
+        # Do not apply group_offload when cpu_offload is active:
+        # NF4-quantized UNet blocks cannot be moved to CPU by group offload hooks mid-inference.
+        # VAE and UNet are already on CUDA explicitly, so inference runs without additional offload.
+        if getattr(args, 'group_offload', False) and not args.cpu_offload:
             marigold_pipe.enable_group_offload('cuda', num_blocks_per_group=1)
-        marigold_pipe.cache_tag_embeds()
 
     return marigold_pipe
 
@@ -164,7 +169,9 @@ def run_layerdiff(pipeline, imgp, save_dir, seed, num_inference_steps, resolutio
 
     # Head crop
     head_tag_list = ['headwear', 'face', 'irides', 'eyebrow', 'eyewhite', 'eyelash', 'eyewear', 'ears', 'earwear', 'nose', 'mouth']
-    hx0, hy0, hw, hh = cv2.boundingRect(cv2.findNonZero((head_img[..., -1] > 15).astype(np.uint8)))
+    head_alpha = (head_img[..., -1] > 15).astype(np.uint8)
+    pts = cv2.findNonZero(head_alpha)
+    hx0, hy0, hw, hh = cv2.boundingRect(pts)
 
     hx = int(hx0 * scale) - pad_pos[0]
     hy = int(hy0 * scale) - pad_pos[1]

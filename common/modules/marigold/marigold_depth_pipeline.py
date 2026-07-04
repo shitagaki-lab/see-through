@@ -523,7 +523,7 @@ class MarigoldDepthPipeline(DiffusionPipeline):
             truncation=True,
             return_tensors="pt",
         )
-        text_input_ids = text_inputs.input_ids.to(self.text_encoder.device)
+        text_input_ids = text_inputs.input_ids.to(self.vae.device)
         self.empty_text_embed = self.text_encoder(text_input_ids)[0].to(self.dtype)
 
 

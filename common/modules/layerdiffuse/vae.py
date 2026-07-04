@@ -250,6 +250,7 @@ class TransparentVAEDecoder(torch.nn.Module):
             y = y.clip(0, 1).movedim(1, -1)
             alpha = y[..., :1]
             if mask is not None:
+                mask = mask.to(alpha.device)
                 alpha = alpha * mask
             fg = y[..., 1:]
 
@@ -311,9 +312,13 @@ class TransparentVAEEncoder(torch.nn.Module):
         rgb_bchw_01 = rgba_bchw_01[:, :3, :, :]
         a_bchw_01 = rgba_bchw_01[:, 3:, :, :]
         vae_feed = (rgb_bchw_01 * 2.0 - 1.0) * a_bchw_01
-        vae_feed = vae_feed.to(device=sd_vae.device, dtype=sd_vae.dtype)
+        try:
+            device = next(self.parameters()).device
+        except StopIteration:
+            device = sd_vae.device
+        vae_feed = vae_feed.to(device=device, dtype=sd_vae.dtype)
         latent_dist = sd_vae.encode(vae_feed).latent_dist
-        offset_feed = torch.cat([a_bchw_01, rgb_padded_bchw_01], dim=1).to(device=sd_vae.device, dtype=self.dtype)
+        offset_feed = torch.cat([a_bchw_01, rgb_padded_bchw_01], dim=1).to(device=device, dtype=self.dtype)
         offset = self.model(offset_feed) * self.alpha
         if use_offset:
             latent = dist_sample_deterministic(dist=latent_dist, perturbation=offset)
@@ -337,8 +342,12 @@ class TransparentVAE(ModelMixin, ConfigMixin):
 
 
 @torch.inference_mode()
-def vae_encode(vae, trans_vae_encoder: TransparentVAEEncoder, argb_tensor: torch.Tensor, use_offset=True, scale=True) -> torch.Tensor:
-    latent = trans_vae_encoder.encode(argb_tensor.to(dtype=vae.dtype, device=vae.device), vae, use_offset=use_offset)
+def vae_encode(vae, trans_vae_encoder: TransparentVAEEncoder, argb_tensor: torch.Tensor, use_offset=True, scale=True, device=None) -> torch.Tensor:
+    try:
+        target_device = device if device is not None else next(trans_vae_encoder.parameters()).device
+    except StopIteration:
+        target_device = vae.device
+    latent = trans_vae_encoder.encode(argb_tensor.to(dtype=vae.dtype, device=target_device), vae, use_offset=use_offset)
     if scale:
         latent = latent * vae.config.scaling_factor
     return latent

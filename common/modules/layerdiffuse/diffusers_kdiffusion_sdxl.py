@@ -142,7 +142,6 @@ class KDiffusionStableDiffusionXLPipeline(StableDiffusionXLImg2ImgPipeline):
 
     @torch.inference_mode()
     def encode_cropped_prompt_77tokens(self, prompt: str):
-        device = self.text_encoder.device
         tokenizers = [self.tokenizer, self.tokenizer_2]
         text_encoders = [self.text_encoder, self.text_encoder_2]
 
@@ -150,15 +149,20 @@ class KDiffusionStableDiffusionXLPipeline(StableDiffusionXLImg2ImgPipeline):
         prompt_embeds_list = []
 
         for tokenizer, text_encoder in zip(tokenizers, text_encoders):
+            try:
+                encoder_device = next(text_encoder.parameters()).device
+            except StopIteration:
+                encoder_device = next(self.trans_vae.parameters()).device
+
             text_input_ids = tokenizer(
                 prompt,
                 padding="max_length",
                 max_length=tokenizer.model_max_length,
                 truncation=True,
                 return_tensors="pt",
-            ).input_ids
+            ).input_ids.to(encoder_device)
 
-            prompt_embeds = text_encoder(text_input_ids.to(device), output_hidden_states=True, return_dict=False)
+            prompt_embeds = text_encoder(text_input_ids, output_hidden_states=True, return_dict=False)
 
             # We are only ALWAYS interested in the pooled output of the final text encoder
             pooled_prompt_embeds = prompt_embeds[0]
@@ -167,10 +171,9 @@ class KDiffusionStableDiffusionXLPipeline(StableDiffusionXLImg2ImgPipeline):
             prompt_embeds = prompt_embeds.view(bs_embed, seq_len, -1)
             prompt_embeds_list.append(prompt_embeds)
 
-        prompt_embeds = torch.concat(prompt_embeds_list, dim=-1).to(dtype=self.unet.dtype, device=device)
-        pooled_prompt_embeds = pooled_prompt_embeds.view(bs_embed, -1)
-
-        # prompt_embeds = prompt_embeds.to(dtype=self.unet.dtype, device=device)
+        execution_device = next(self.trans_vae.parameters()).device
+        prompt_embeds = torch.concat(prompt_embeds_list, dim=-1).to(dtype=self.unet.dtype, device=execution_device)
+        pooled_prompt_embeds = pooled_prompt_embeds.view(bs_embed, -1).to(dtype=self.unet.dtype, device=execution_device)
 
         return prompt_embeds, pooled_prompt_embeds
 
@@ -282,10 +285,6 @@ class KDiffusionStableDiffusionXLPipeline(StableDiffusionXLImg2ImgPipeline):
         return latents
 
 
-    @property
-    def device(self) -> torch.device:
-        return self.unet.device
-
     @torch.inference_mode()
     def __call__(
             self,
@@ -307,7 +306,7 @@ class KDiffusionStableDiffusionXLPipeline(StableDiffusionXLImg2ImgPipeline):
             group_index=None
     ):
 
-        device = self.unet.device
+        device = next(self.trans_vae.parameters()).device
         dtype = self.unet.dtype
 
         if fullpage is not None:
@@ -315,7 +314,7 @@ class KDiffusionStableDiffusionXLPipeline(StableDiffusionXLImg2ImgPipeline):
             fullpage = fullpage[..., :3]
             c_concat = np.concatenate([np.full_like(fullpage[..., :1], fill_value=255), fullpage], axis=2)
             c_concat = img2tensor(c_concat, normalize=True)
-            c_concat = vae_encode(self.vae, self.trans_vae.encoder, c_concat, use_offset=False).to(device=device, dtype=dtype)
+            c_concat = vae_encode(self.vae, self.trans_vae.encoder, c_concat, use_offset=False, device=device).to(device=device, dtype=dtype)
             c_concat = c_concat.to(dtype=dtype)
 
         assert c_concat is not None
@@ -332,7 +331,7 @@ class KDiffusionStableDiffusionXLPipeline(StableDiffusionXLImg2ImgPipeline):
                 num_frames = len(prompt_embeds)
             
         if initial_latent is None:
-            initial_latent = torch.zeros((batch_size, 4, lh, lw), device=self.unet.device, dtype=self.unet.dtype)
+            initial_latent = torch.zeros((batch_size, 4, lh, lw), device=device, dtype=self.unet.dtype)
 
         if is_3d and c_concat.ndim == 4:
             c_concat = c_concat[:, None].expand(-1, num_frames, -1, -1, -1)

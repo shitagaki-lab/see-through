@@ -168,35 +168,44 @@ python inference/scripts/inference_psd.py \
   --group_offload
 ```
 
-**8 GB GPUs**: Use the NF4 quantized pipeline, which uses 4-bit quantized model weights. This achieves ~8 GB peak VRAM at 1280 resolution, and can be further reduced by lowering the resolution with group offload:
+**8 GB GPUs**: Use the NF4 quantized pipeline with `--cpu_offload` and `--group_offload`. Tested on RTX 3060 Ti (8 GB) at 768 resolution — **peak VRAM ~4.2 GB**, total runtime ~4 minutes per image:
 
 ```bash
 # Install bitsandbytes (one-time)
 pip install -r requirements-inference-bnb.txt
 
-# Run with NF4 quantization (default: group_offload on, depth resolution 720)
-python inference/scripts/inference_psd_quantized.py \
-  --srcp assets/test_image.png \
-  --save_to_psd
-
-# For even lower VRAM, reduce layerdiff resolution to 1024
+# Confirmed working configuration for 8 GB GPUs
 python inference/scripts/inference_psd_quantized.py \
   --srcp assets/test_image.png \
   --save_to_psd \
-  --resolution 1024
+  --cpu_offload \
+  --group_offload \
+  --resolution 768 \
+  --resolution_depth 512
 ```
+
+| Metric | Value (RTX 3060 Ti) |
+|--------|---------------------|
+| Peak VRAM | ~4.2 GB |
+| LayerDiff (body + head) | ~207 s |
+| Marigold depth | ~10 s |
+| Total | **~240 s (~4 min)** |
+
+> **Note on resolution:** 512 px produces empty head layers (outside the model's training distribution). The minimum effective resolution is **768 px**.
+
+> **Note:** `--cpu_offload` is required on 8 GB GPUs. `--group_offload` is also required; do not disable it when using NF4 + cpu_offload together.
 
 The quantized models are hosted on HuggingFace and downloaded automatically on first run. Quality is close to the full-precision model (PSNR ~30 dB, SSIM ~0.96 vs bf16 baseline).
 
-> **Note:** Group offload trades speed for VRAM savings (roughly 1.5x slower). NF4 quantization has minimal speed overhead but reduces model weight memory.
-
-**8 GB GPUs**: Block swap pipeline achieves ~8 GB peak VRAM at 1280 resolution with bf16 precision:
+**8 GB GPUs (alternative)**: Block swap pipeline with bf16 precision:
 
 ```bash
 python inference/scripts/inference_psd_blockswap.py \
   --srcp assets/test_image.png \
-  --save_to_psd \
+  --save_to_psd
 ```
+
+> **Windows note:** The blockswap pipeline may crash on Windows during model loading (access violation in `UNetFrameConditionModel.from_pretrained`). Use the NF4 quantized pipeline above as the recommended alternative.
 
 ### Preparing the dataset for training (e.g., Live2D Parsing)
 
