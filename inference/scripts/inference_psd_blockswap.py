@@ -389,10 +389,13 @@ if __name__ == '__main__':
     os.makedirs(saved, exist_ok=True)
 
     print(f"Building Blockswap pipeline (repo: {args.repo_id_layerdiff})...")
-    trans_vae = TransparentVAE.from_pretrained(args.repo_id_layerdiff, subfolder='trans_vae', disable_mmap=True)
-    unet = UNetFrameConditionModel.from_pretrained(args.repo_id_layerdiff, subfolder='unet', disable_mmap=True)
+    # mmap-based safetensors loading can crash with an uncatchable access violation on
+    # Windows under memory pressure; mmap is stable and more efficient elsewhere.
+    is_windows = sys.platform == 'win32'
+    trans_vae = TransparentVAE.from_pretrained(args.repo_id_layerdiff, subfolder='trans_vae', disable_mmap=is_windows)
+    unet = UNetFrameConditionModel.from_pretrained(args.repo_id_layerdiff, subfolder='unet', disable_mmap=is_windows)
     pipeline = KDiffusionStableDiffusionXLPipelineBlockSwap.from_pretrained(
-        args.repo_id_layerdiff, trans_vae=trans_vae, unet=unet, scheduler=None, disable_mmap=True
+        args.repo_id_layerdiff, trans_vae=trans_vae, unet=unet, scheduler=None, disable_mmap=is_windows
     )
     pipeline.enable_blockswap(device='cuda')
     pipeline.cache_tag_embeds()
