@@ -205,7 +205,7 @@ python inference/scripts/inference_psd_blockswap.py \
   --save_to_psd
 ```
 
-> **Windows note:** The blockswap pipeline may crash on Windows during model loading (access violation in `UNetFrameConditionModel.from_pretrained`). Use the NF4 quantized pipeline above as the recommended alternative.
+> **Windows note:** The blockswap pipeline loads the full bf16 unet checkpoint (~8.14 GB) via `UNetFrameConditionModel.from_pretrained`. On memory-constrained Windows machines (e.g. 16 GB total RAM) this could crash with an uncatchable access violation during safetensors' default mmap-based loading. Passing `disable_mmap=True` (now the default in this script) avoids that specific crash by switching to eager loading, but a second, distinct access violation in `diffusers`' `load_model_dict_into_meta` (Windows-specific, reproducible independent of free RAM) can still occur during weight materialization. Use the NF4 quantized pipeline above as the recommended, verified-stable alternative for 8 GB GPUs.
 
 ### Preparing the dataset for training (e.g., Live2D Parsing)
 

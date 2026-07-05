@@ -186,14 +186,43 @@ cd C:\dev\github\wit-maker\see-through
 
 ## 既知の問題
 
-### blockswap版
+### blockswap版(部分的に調査・改善、完全解決には至らず)
+
+`inference_psd_blockswap.py` は bf16フル精度の非量子化UNet(`layerdifforg/seethroughv0.0.2_layerdiff3d`、
+unetファイルのみ約8.14GB)を読み込むため、このマシン(物理RAM 16.7GB)では以下の2段階のクラッシュが起きる。
+
+**① 修正済み: mmap読み込み時のアクセス違反**
 
 ```
-UNetFrameConditionModel.from_pretrained() → Windows access violation
+File ".../safetensors/torch.py", line 338 in load_file
+Windows fatal exception: access violation
 ```
 
-`inference_psd_blockswap.py` は Windows でロード段階でクラッシュする。
-未調査。NF4 + cpu_offload 構成で代替可能なので当面保留。
+原因: safetensorsのデフォルトのmmapベースのゼロコピー読み込みが、空きRAM不足時に
+Windows上でページフォールトを解決できず、捕捉不能なネイティブクラッシュ(SEH access violation)になる。
+
+対策: `from_pretrained(..., disable_mmap=True)` を `trans_vae` / `unet` / パイプライン本体の
+3箇所に指定し、mmapではなく通常の一括読み込みに変更。この変更により、低RAM環境では
+少なくとも捕捉可能な `MemoryError` に変わることを確認済み(=クラッシュではなくなった)。
+
+**② 未解決: 重み書き込み時の別のアクセス違反**
+
+空きRAMを約8.9GB〜10.8GBまで確保して再検証したところ、①のクラッシュは再発しなくなったが、
+今度は読み込んだ重みをモデルに書き込む段階で**別の**アクセス違反が発生することを確認した:
+
+```
+File ".../diffusers/models/model_loading_utils.py", line 273 in load_model_dict_into_meta
+File ".../diffusers/models/model_loading_utils.py", line 368 in _load_shard_file
+Windows fatal exception: access violation
+```
+
+空きRAM量(~8.9GB時と~10.8GB時)に関わらず**全く同じ箇所**で再現するため、単純な空きRAM不足ではなく、
+diffusers/accelerateのWindows環境での既知バグの可能性が高い。この先を追うにはライブラリ側への
+バグ報告や別バージョンへの切り替えなど、当初の想定を超える調査が必要。
+
+**現状の結論**: ①の修正(`disable_mmap=True`)は本物の改善だが、②が残るため
+`inference_psd_blockswap.py` はこのマシンではまだ完走しない。NF4 + cpu_offload構成
+(768px、peak VRAM 4.19GB)が引き続き実用上の推奨構成。
 
 ## セットアップ完了状態のまとめ
 
