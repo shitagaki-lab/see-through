@@ -126,11 +126,11 @@ def ensemble_depth(
             if return_uncertainty:
                 uncertainty = torch.std(depth_aligned, dim=0, keepdim=True)
         elif reduction == "median":
-            prediction = torch.median(depth_aligned, dim=0, keepdim=True).values
+            prediction = torch.median(depth_aligned.cpu(), dim=0, keepdim=True).values.to(depth_aligned.device)
             if return_uncertainty:
                 uncertainty = torch.median(
-                    torch.abs(depth_aligned - prediction), dim=0, keepdim=True
-                ).values
+                    torch.abs(depth_aligned.cpu() - prediction.cpu()), dim=0, keepdim=True
+                ).values.to(depth_aligned.device)
         else:
             raise ValueError(f"Unrecognized reduction method: {reduction}.")
         return prediction, uncertainty
@@ -260,11 +260,11 @@ def ensemble_iid(
         if output_uncertainty:
             uncertainty = torch.std(targets, dim=0, keepdim=True)
     elif reduction == "median":
-        prediction = torch.median(targets, dim=0, keepdim=True).values
+        prediction = torch.median(targets.cpu(), dim=0, keepdim=True).values.to(targets.device)
         if output_uncertainty:
             uncertainty = torch.median(
-                torch.abs(targets - prediction), dim=0, keepdim=True
-            ).values
+                torch.abs(targets.cpu() - prediction.cpu()), dim=0, keepdim=True
+            ).values.to(targets.device)
     else:
         raise ValueError(f"Unrecognized reduction method: {reduction}.")
     return prediction, uncertainty
