@@ -153,7 +153,7 @@ class RTMDetInsHeadCustom(RTMDetInsHead):
         n_layers = len(weights)
         x = mask_feat.reshape(1, -1, h, w)
         for i, (weight, bias) in enumerate(zip(weights, biases)):
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch.amp.autocast("cuda", enabled=False):
                 if fp16_used:
                     weight = weight.to(torch.float32)
                     bias = bias.to(torch.float32)
@@ -272,7 +272,7 @@ class RTMDetInsSepBNHeadCustom(RTMDetInsSepBNHead):
         n_layers = len(weights)
         x = mask_feat.reshape(1, -1, h, w)
         for i, (weight, bias) in enumerate(zip(weights, biases)):
-            with torch.cuda.amp.autocast(enabled=False):
+            with torch.amp.autocast("cuda", enabled=False):
                 if fp16_used:
                     weight = weight.to(torch.float32)
                     bias = bias.to(torch.float32)

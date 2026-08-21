@@ -25,7 +25,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.cuda.amp as amp
+# torch.cuda.amp is deprecated since torch 2.4; the import below targets
+# torch.amp (same API, no warning). Kept only for the commented-out block
+# below; if that block is removed, this import should go with it.
+import torch.amp as amp
 import numpy as np
 
 
@@ -163,7 +166,7 @@ def compute_metrics(gt, pred, interpolate=True, mask=None, garg_crop=False, eige
 #             input = input[mask]
 #             target = target[mask]
 
-#         with amp.autocast(enabled=False):  # amp causes NaNs in this loss function
+#         with amp.autocast("cuda", enabled=False):  # amp causes NaNs in this loss function
 #             alpha = 1e-7
 #             g = torch.log(input + alpha) - torch.log(target + alpha)
 
