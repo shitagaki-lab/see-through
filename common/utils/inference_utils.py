@@ -10,6 +10,7 @@ from utils.cv import center_square_pad_resize, img_alpha_blending, smart_resize,
 from utils.torch_utils import seed_everything
 from utils.io_utils import json2dict, dict2json, load_parts, save_tmp_img, load_part, save_psd
 from utils.torchcv import cluster_inpaint_part
+from utils.depth_sort import depth_sort_key, median_depth
 
 from psd_tools import PSDImage
 from safetensors.torch import load_file
@@ -346,7 +347,9 @@ def save_part(tag, saved, part_dict, crop=True, save_part_info=False, save_to_di
 
     depth = part_dict.pop('depth')
     mask = img[..., -1] > 10
-    depth_median = np.median(depth[mask])
+    # the mask can be empty (fully transparent crop) -> np.median([]) is NaN,
+    # and a NaN depth later scrambles the PSD layer order
+    depth_median = median_depth(depth[mask])
 
     if crop:
         xywh = cv2.boundingRect(cv2.findNonZero(mask.astype(np.uint8)))
@@ -496,7 +499,7 @@ def further_extr(srcd: str, rotate=True, save_to_psd=False, tblr_split=True):
         if 'hair' in tag2pinfo:
             part_info = tag2pinfo.pop('hair')
             parts = cluster_inpaint_part(**part_info)
-            parts.sort(key=lambda x: x['depth_median'])
+            parts.sort(key=depth_sort_key)
             tag2pinfo['hairf'] = parts[0]
             tag2pinfo['hairb'] = parts[1]
 
@@ -525,13 +528,14 @@ def further_extr(srcd: str, rotate=True, save_to_psd=False, tblr_split=True):
             part_dict_list.append(part_dict)
 
     if 'face' in tag2pinfo:
+        face_depth = depth_sort_key(tag2pinfo['face'])
         for t in ['nose', 'mouth', 'eyes']:
             if t in tag2pinfo:
-                if tag2pinfo[t]['depth_median'] > tag2pinfo['face']['depth_median']:
-                    tag2pinfo[t]['depth_median'] = tag2pinfo['face']['depth_median'] - 0.001
+                if depth_sort_key(tag2pinfo[t]) > face_depth:
+                    tag2pinfo[t]['depth_median'] = face_depth - 0.001
         for t in ['earr', 'earl', 'ears']:
             if t in tag2pinfo:
-                tag2pinfo[t]['depth_median'] = tag2pinfo['face']['depth_median'] + 0.001
+                tag2pinfo[t]['depth_median'] = face_depth + 0.001
 
     # if 'hairb' in tag2pinfo:
     #     tag2pinfo['hairb']['depth_median'] = 1.
@@ -551,7 +555,7 @@ def dump_parts_psd(tag2pinfo, frame_size, psd_savep, part_dict_list=None):
         for v in tag2pinfo.values():
             part_dict_list.append(v)
     psd_depth_savep = osp.splitext(psd_savep)[0] + '_depth.psd'
-    part_dict_list.sort(key=lambda x: x['depth_median'], reverse=True)
+    part_dict_list.sort(key=depth_sort_key, reverse=True)
     save_psd(psd_savep, part_dict_list, frame_size[0], frame_size[1])
     save_psd(psd_depth_savep, part_dict_list, frame_size[0], frame_size[1], mode='L', img_key='depth')
     for pdict in tag2pinfo.values():
