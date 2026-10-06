@@ -27,7 +27,7 @@ def apply_segmentation(input_img, use_amp=True, s=640, model=None):
     tmpImg = torch.from_numpy(tmpImg).unsqueeze(0).type(torch.FloatTensor).to(model.device)
     with torch.no_grad():
         if use_amp:
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast("cuda"):
                 pred = model(tmpImg)
         else:
             pred = model(tmpImg)
