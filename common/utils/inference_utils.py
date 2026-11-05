@@ -141,13 +141,42 @@ def apply_layerdiff(
         # head_img = np.array(Image.open(osp.join(saved, 'head.png')))
 
         head_tag_list = ['headwear', 'face', 'irides', 'eyebrow', 'eyewhite', 'eyelash', 'eyewear', 'ears', 'earwear', 'nose', 'mouth']
-        hx0, hy0, hw, hh = cv2.boundingRect(cv2.findNonZero((head_img[..., -1] > 15).astype(np.uint8)))
+        head_mask = (head_img[..., -1] > 15).astype(np.uint8)
+        if not np.any(head_mask):
+            print(
+                'Skipping head extraction: generated head mask is empty '
+                f'(head image shape={head_img.shape}, source image shape={input_img.shape}). '
+                f'Body layers remain available in {saved}.'
+            )
+            return
+
+        hx0, hy0, hw, hh = cv2.boundingRect(cv2.findNonZero(head_mask))
         
         hx = int(hx0 * scale) - pad_pos[0]
         hy = int(hy0 * scale) - pad_pos[1]
         hw = int(hw * scale)
         hh = int(hh * scale)
-        input_head, (hx1, hy1, hx2, hy2) = _crop_head(input_img, [hx, hy, hw, hh])
+        src_h, src_w = input_img.shape[:2]
+        hx2 = min(hx + hw, src_w)
+        hy2 = min(hy + hh, src_h)
+        hx = max(hx, 0)
+        hy = max(hy, 0)
+        if hx2 <= hx or hy2 <= hy:
+            print(
+                'Skipping head extraction: generated head bounding box does not intersect '
+                f'the source image (bbox={(hx, hy, hx2, hy2)}, '
+                f'source image size={(src_w, src_h)}). Body layers remain available in {saved}.'
+            )
+            return
+
+        input_head, (hx1, hy1, hx2, hy2) = _crop_head(input_img, [hx, hy, hx2 - hx, hy2 - hy])
+        if input_head.size == 0 or input_head.shape[0] == 0 or input_head.shape[1] == 0:
+            print(
+                'Skipping head extraction: clipped head crop is empty '
+                f'(bbox={(hx1, hy1, hx2, hy2)}, source image size={(src_w, src_h)}). '
+                f'Body layers remain available in {saved}.'
+            )
+            return
         hx1 = int(hx1 / scale + pad_pos[0] / scale)
         hy1 = int(hy1 / scale + pad_pos[1] / scale)
         ih, iw = input_head.shape[:2]
