@@ -143,12 +143,11 @@ def apply_layerdiff(
         head_tag_list = ['headwear', 'face', 'irides', 'eyebrow', 'eyewhite', 'eyelash', 'eyewear', 'ears', 'earwear', 'nose', 'mouth']
         head_mask = (head_img[..., -1] > 15).astype(np.uint8)
         if not np.any(head_mask):
-            print(
-                'Skipping head extraction: generated head mask is empty '
-                f'(head image shape={head_img.shape}, source image shape={input_img.shape}). '
-                f'Body layers remain available in {saved}.'
+            raise ValueError(
+                'Cannot extract head layers: generated head mask is empty '
+                f'(head image shape={head_img.shape}, source image shape={input_img.shape}, '
+                f'output directory={saved}).'
             )
-            return
 
         hx0, hy0, hw, hh = cv2.boundingRect(cv2.findNonZero(head_mask))
         
@@ -162,21 +161,19 @@ def apply_layerdiff(
         hx = max(hx, 0)
         hy = max(hy, 0)
         if hx2 <= hx or hy2 <= hy:
-            print(
-                'Skipping head extraction: generated head bounding box does not intersect '
+            raise ValueError(
+                'Cannot extract head layers: generated head bounding box does not intersect '
                 f'the source image (bbox={(hx, hy, hx2, hy2)}, '
-                f'source image size={(src_w, src_h)}). Body layers remain available in {saved}.'
+                f'source image size={(src_w, src_h)}, output directory={saved}).'
             )
-            return
 
         input_head, (hx1, hy1, hx2, hy2) = _crop_head(input_img, [hx, hy, hx2 - hx, hy2 - hy])
         if input_head.size == 0 or input_head.shape[0] == 0 or input_head.shape[1] == 0:
-            print(
-                'Skipping head extraction: clipped head crop is empty '
-                f'(bbox={(hx1, hy1, hx2, hy2)}, source image size={(src_w, src_h)}). '
-                f'Body layers remain available in {saved}.'
+            raise ValueError(
+                'Cannot extract head layers: clipped head crop is empty '
+                f'(bbox={(hx1, hy1, hx2, hy2)}, source image size={(src_w, src_h)}, '
+                f'output directory={saved}).'
             )
-            return
         hx1 = int(hx1 / scale + pad_pos[0] / scale)
         hy1 = int(hy1 / scale + pad_pos[1] / scale)
         ih, iw = input_head.shape[:2]
