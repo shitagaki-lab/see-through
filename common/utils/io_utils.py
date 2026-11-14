@@ -497,7 +497,7 @@ def xyxy2center(xyxy):
 
 def save_psd(savep, img_list, h, w, pad_to_canvas=False, mode='RGBA', img_key='img'):
     from psd_tools import PSDImage
-    psd_image = PSDImage.new(mode=mode, size=(h, w), depth=8)
+    psd_image = PSDImage.new(mode=mode, size=(w, h), depth=8)
     for imgd in img_list:
         img = imgd[img_key]
         x1 = y1 = 0
