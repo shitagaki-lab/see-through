@@ -3,6 +3,8 @@ from einops import reduce
 import numpy as np
 import cv2
 
+from utils.depth_sort import median_depth
+
 
 def build_alpha_pyramid_torch(argb_tensor, dk=1.2):
     argb_tensor = argb_tensor.clone()
@@ -102,7 +104,8 @@ def cluster_inpaint_part(depth, mask, img, inpaint='lama',**kwargs):
         extracted_parts.append({
             'img': np.concatenate([rgb, imask[..., None]], axis=-1),
             # 'depth_median': cluster.cluster_centers_[ii] * (dmax - dmin + 1e-6) + dmin
-            'depth_median': np.median(depth[to_mask]),
+            # a cluster can end up with no pixels at all -> np.median([]) is NaN
+            'depth_median': median_depth(depth[to_mask]),
             'depth': d.astype(np.float32) / 255. * (dmax - dmin + 1e-6) + dmin
         })
 
@@ -136,7 +139,7 @@ def cluster_inpaint_part(depth, mask, img, inpaint='lama',**kwargs):
 
     to_mask = labels == i2c[-1]
     extracted_parts.append({'img': np.concatenate([rgb, alpha[..., None]], axis=-1), 
-        'depth_median': np.median(depth[to_mask]),
+        'depth_median': median_depth(depth[to_mask]),
         'depth': d.astype(np.float32) / 255. * (dmax - dmin + 1e-6) + dmin
         }
     )
