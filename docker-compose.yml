@@ -1,0 +1,37 @@
+services:
+  see-through:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: see-through:latest
+    container_name: see-through
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - huggingface-cache:/root/.cache/huggingface
+      - torch-cache:/root/.cache/torch
+    stdin_open: true
+    tty: true
+    environment:
+      PYTHONUNBUFFERED: "1"
+      HF_HOME: /root/.cache/huggingface
+      MPLBACKEND: Agg
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: ["tail", "-f", "/dev/null"]
+#    command: >
+#      bash -lc "
+#        ln -sf common/assets assets &&
+#        python inference/scripts/inference_psd.py
+#        --srcp assets/test_image.png
+#        --save_to_psd
+#      "
+
+volumes:
+  huggingface-cache:
+  torch-cache:
